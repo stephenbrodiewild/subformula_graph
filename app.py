@@ -1,31 +1,70 @@
-from dash import Dash, html, dcc
+import base64
+import datetime
+import io
+
+import dash
+from dash.dependencies import Input, Output, State
+from dash import dcc, html, dash_table
+import tempfile
+
 import plotly.express as px
 import pandas as pd
 
-app = Dash(__name__)
+from algorithm.chromatogram import Chromatogram
 
-# assume you have a "long-form" data frame
-# see https://plotly.com/python/px-arguments/ for more options
-df = pd.DataFrame({
-    "Fruit": ["Apples", "Oranges", "Bananas", "Apples", "Oranges", "Bananas"],
-    "Amount": [4, 1, 2, 2, 4, 5],
-    "City": ["SF", "SF", "SF", "Montreal", "Montreal", "Montreal"]
-})
+external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-fig = px.bar(df, x="Fruit", y="Amount", color="City", barmode="group")
+app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
-app.layout = html.Div(children=[
-    html.H1(children='Hello Dash'),
-
-    html.Div(children='''
-        Dash: A web application framework for your data.
-    '''),
-
-    dcc.Graph(
-        id='example-graph',
-        figure=fig
-    )
+app.layout = html.Div([
+    dcc.Upload(
+        id='upload-data',
+        children=html.Div([
+            'Drag and Drop or ',
+            html.A('Select Files')
+        ]),
+        style={
+            'width': '100%',
+            'height': '60px',
+            'lineHeight': '60px',
+            'borderWidth': '1px',
+            'borderStyle': 'dashed',
+            'borderRadius': '5px',
+            'textAlign': 'center',
+            'margin': '10px'
+        }
+    ),
+    dcc.Graph(id='chromatogram')
 ])
+
+
+def parse_contents(contents):
+    content_type, content_string = contents.split(',')
+
+    decoded = base64.b64decode(content_string)
+
+chromatogram = None
+
+@app.callback(Output('chromatogram', 'figure'),
+              Input('upload-data', 'contents'), prevent_initial_call=True)
+def update_chromatogram(contents):
+    if contents is not None:
+        content_type, content_string = contents.split(',')
+        try:
+            with tempfile.NamedTemporaryFile(mode='w+b', suffix=".CDF") as f:
+                f.write(base64.b64decode(content_string))
+                f.seek(0)
+                print(f.name)
+                chromatogram = Chromatogram(f.name)
+                df = pd.DataFrame({'time': [chromatogram.times[i]/60 for i in range(
+                    chromatogram.maxscan)], 'Intensity': chromatogram.ion_current})
+                fig = px.line(df, x='time', y='Intensity')
+                fig.update_layout(transition_duration=500)
+                return fig
+        except Exception as e:
+            print(e)
+            pass
+
 
 if __name__ == '__main__':
     app.run_server(debug=True, host='0.0.0.0')
