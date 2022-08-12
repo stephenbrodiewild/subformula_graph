@@ -37,34 +37,29 @@ app.layout = html.Div([
     dcc.Graph(id='chromatogram')
 ])
 
-
-def parse_contents(contents):
-    content_type, content_string = contents.split(',')
-
-    decoded = base64.b64decode(content_string)
-
 chromatogram = None
+
+def scan_data_to_chromatogram(scan_file):
+    _, content_string = scan_file.split(',')
+    try:
+        with tempfile.NamedTemporaryFile(mode='w+b', suffix=".CDF") as f:
+            f.write(base64.b64decode(content_string))
+            f.seek(0)
+            chromatogram = Chromatogram(f.name)
+    except Exception as e:
+        print(e)
+        chromatogram = None
+        pass
 
 @app.callback(Output('chromatogram', 'figure'),
               Input('upload-data', 'contents'), prevent_initial_call=True)
 def update_chromatogram(contents):
-    if contents is not None:
-        content_type, content_string = contents.split(',')
-        try:
-            with tempfile.NamedTemporaryFile(mode='w+b', suffix=".CDF") as f:
-                f.write(base64.b64decode(content_string))
-                f.seek(0)
-                print(f.name)
-                chromatogram = Chromatogram(f.name)
-                df = pd.DataFrame({'time': [chromatogram.times[i]/60 for i in range(
-                    chromatogram.maxscan)], 'Intensity': chromatogram.ion_current})
-                fig = px.line(df, x='time', y='Intensity')
-                fig.update_layout(transition_duration=500)
-                return fig
-        except Exception as e:
-            print(e)
-            pass
-
+    scan_data_to_chromatogram(contents)
+    if chromatogram:
+        df = pd.DataFrame({'time': [chromatogram.times[i]/60 for i in range(
+            chromatogram.maxscan)], 'Intensity': chromatogram.ion_current})
+        fig = px.line(df, x='time', y='Intensity')
+        fig.update_layout(transition_duration=500)
 
 if __name__ == '__main__':
-    app.run_server(debug=True, host='0.0.0.0')
+    app.run_server()
