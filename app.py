@@ -62,4 +62,4 @@ def update_chromatogram(contents):
         fig.update_layout(transition_duration=500)
 
 if __name__ == '__main__':
-    app.run_server()
+    app.run_server(port=8080, host='0.0.0.0')
