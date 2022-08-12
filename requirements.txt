@@ -3,4 +3,5 @@ matplotlib
 numpy
 networkx
 netcdf4
-flask
+dash
+pandas
